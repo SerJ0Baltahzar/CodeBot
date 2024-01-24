@@ -1,0 +1,87 @@
+import telebot
+from telebot import types
+import requests
+
+bot = telebot.TeleBot('6810511847:AAGt_UzwGTKlrWSLcAKkBGn0AguQUKqoEig')
+
+# Словарь для хранения текста пользователя
+user_texts = {}
+
+
+@bot.message_handler(commands=['start'])
+def start(message):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=3)
+    website_dicebear = types.KeyboardButton('/pixel-art-dicebear')
+    website_croodles = types.KeyboardButton('/pixel-art-croodles')
+    start = types.KeyboardButton('/start')
+
+    markup.add(start, website_dicebear, website_croodles)
+
+    mess = f'Здаров, <b><u>{message.from_user.first_name}</u></b>'
+    bot.send_message(message.chat.id, mess, parse_mode='html', reply_markup=markup)
+
+
+@bot.message_handler(commands=['pixel-art-dicebear'])
+def request_text_dicebear(message):
+    markup = types.ReplyKeyboardRemove()
+
+    # Просим пользователя ввести текст
+    msg = bot.send_message(message.chat.id, "Введите текст для генерации изображения (DiceBear):", reply_markup=markup)
+
+    # Сохраняем chat_id в словаре для последующего использования
+    user_texts[message.chat.id] = (msg.message_id, "dicebear")
+
+
+@bot.message_handler(commands=['pixel-art-croodles'])
+def request_text_croodles(message):
+    markup = types.ReplyKeyboardRemove()
+
+    # Просим пользователя ввести текст
+    msg = bot.send_message(message.chat.id, "Введите текст для генерации изображения (Croodles):", reply_markup=markup)
+
+    # Сохраняем chat_id в словаре для последующего использования
+    user_texts[message.chat.id] = (msg.message_id, "croodles")
+
+
+@bot.message_handler(func=lambda message: True)
+def generate_image(message):
+    # Проверяем, есть ли сообщение в словаре
+    if message.chat.id in user_texts:
+        # Получаем введенный пользователем текст
+        user_text = message.text
+
+        # Заменяем пробелы в тексте на подчеркивания
+        user_text = user_text.replace(" ", "_")
+
+        # Пример изменения регистра текста
+        user_text = user_text.upper()
+
+        # Определяем тип изображения (dicebear или croodles)
+        msg_id, image_type = user_texts[message.chat.id]
+
+        if image_type == "dicebear":
+            dicebear_url = f"https://api.dicebear.com/7.x/pixel-art/png?seed={user_text}"
+            image_data = requests.get(dicebear_url).content
+            bot.send_photo(message.chat.id, photo=image_data)
+        elif image_type == "croodles":
+            croodles_url = f"https://api.dicebear.com/7.x/croodles-neutral/png?seed={user_text}"
+            image_data = requests.get(croodles_url).content
+            bot.send_photo(message.chat.id, photo=image_data)
+
+        # Удаляем сообщение из словаря
+        del user_texts[message.chat.id]
+
+        # Восстанавливаем активные кнопки
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=3)
+        website_dicebear = types.KeyboardButton('/pixel-art-dicebear')
+        website_croodles = types.KeyboardButton('/pixel-art-croodles')
+        start = types.KeyboardButton('/start')
+
+        markup.add(start, website_dicebear, website_croodles)
+
+        # Отправляем сообщение с восстановленными кнопками
+        bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
+
+
+if __name__ == "__main__":
+    bot.polling(none_stop=True)
